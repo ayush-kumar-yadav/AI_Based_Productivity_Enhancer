@@ -9,26 +9,78 @@ exports.getAIProductivitySummary = async (req, res) => {
 
     const tasks = await Task.find({ user: req.user.id });
 
+    // ===== BASIC STATS =====
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.completed).length;
     const pendingTasks = totalTasks - completedTasks;
 
     const completionRate =
       totalTasks > 0
-        ? ((completedTasks / totalTasks) * 100).toFixed(1)
+        ? Number(((completedTasks / totalTasks) * 100).toFixed(1))
         : 0;
 
+    // ===== HIGH PRIORITY ANALYSIS =====
     const highPriorityTasks = tasks.filter(t => t.priority === "high");
     const highPriorityCompleted =
       highPriorityTasks.filter(t => t.completed).length;
 
     const highPriorityCompletionRate =
       highPriorityTasks.length > 0
-        ? ((highPriorityCompleted / highPriorityTasks.length) * 100).toFixed(1)
+        ? Number(
+            ((highPriorityCompleted / highPriorityTasks.length) * 100).toFixed(
+              1
+            )
+          )
         : 0;
 
+    // ===== PRODUCTIVITY STREAK =====
+    const completedDates = tasks
+      .filter(t => t.completed)
+      .map(t => new Date(t.updatedAt).toDateString());
+
+    const uniqueDates = [...new Set(completedDates)].sort(
+      (a, b) => new Date(a) - new Date(b)
+    );
+
+    let streak = 0;
+    let prevDate = null;
+
+    uniqueDates.forEach(date => {
+      const current = new Date(date);
+
+      if (!prevDate) {
+        streak = 1;
+      } else {
+        const diff = (current - prevDate) / (1000 * 60 * 60 * 24);
+
+        if (diff === 1) streak++;
+        else streak = 1;
+      }
+
+      prevDate = current;
+    });
+
+    // ===== WEEKLY TREND =====
+    const trendData = {};
+
+    tasks.forEach(task => {
+      if (!task.completed) return;
+
+      const day = new Date(task.updatedAt).toLocaleDateString("en-US", {
+        weekday: "short",
+      });
+
+      trendData[day] = (trendData[day] || 0) + 1;
+    });
+
+    const trendArray = Object.keys(trendData).map(day => ({
+      day,
+      completed: trendData[day],
+    }));
+
+    // ===== AI ANALYSIS PROMPT =====
     const prompt = `
-Return ONLY valid JSON.
+Return ONLY a valid JSON object.
 
 {
   "behaviorInsight": "...",
@@ -37,7 +89,7 @@ Return ONLY valid JSON.
   "motivation": "..."
 }
 
-Analyze:
+Analyze the productivity data:
 
 Total Tasks: ${totalTasks}
 Completed Tasks: ${completedTasks}
@@ -46,39 +98,75 @@ Completion Rate: ${completionRate}%
 High Priority Completion Rate: ${highPriorityCompletionRate}%
 `;
 
+    // ===== AI SUGGESTIONS PROMPT =====
+    const suggestionPrompt = `
+Return ONLY valid JSON.
+
+{
+  "suggestions": ["...", "...", "..."]
+}
+
+Based on:
+
+Completion Rate: ${completionRate}%
+Pending Tasks: ${pendingTasks}
+`;
+
     const response = await ai.models.generateContent({
       model: "models/gemini-2.5-flash",
       contents: prompt,
     });
 
-    const text =
-      response.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    const suggestionResponse = await ai.models.generateContent({
+      model: "models/gemini-2.5-flash",
+      contents: suggestionPrompt,
+    });
 
-    console.log("RAW AI:", text);
+    // ===== CLEAN AI TEXT FUNCTION =====
+    const cleanJson = text => {
+      text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      const match = text.match(/\{[\s\S]*\}/);
+      return match ? match[0] : "{}";
+    };
 
-    let parsed;
+    // ===== PARSE AI INSIGHTS =====
+    let aiInsights;
     try {
-      parsed = JSON.parse(text);
+      const cleanText = cleanJson(response.text || "{}");
+      aiInsights = JSON.parse(cleanText);
     } catch {
-      parsed = {
-        behaviorInsight: text,
-        riskWarning: "Could not structure output.",
+      aiInsights = {
+        behaviorInsight: "AI analysis could not be structured.",
+        riskWarning: "",
         strategies: [],
-        motivation: ""
+        motivation: "",
       };
     }
 
+    // ===== PARSE AI SUGGESTIONS =====
+    let suggestions = [];
+    try {
+      const cleanText = cleanJson(suggestionResponse.text || "{}");
+      const parsed = JSON.parse(cleanText);
+      suggestions = parsed.suggestions || [];
+    } catch {
+      suggestions = [];
+    }
+
+    // ===== RESPONSE =====
     res.json({
       stats: {
         totalTasks,
         completedTasks,
         pendingTasks,
         completionRate,
-        highPriorityCompletionRate
+        highPriorityCompletionRate,
+        streak,
       },
-      aiInsights: parsed
+      trend: trendArray,
+      suggestions,
+      aiInsights,
     });
-
   } catch (error) {
     console.error("FULL ERROR:", error);
     res.status(500).json({ message: "AI analysis failed" });
