@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import API from "../api/axios";
-import TaskList from "../components/TaskList";
+import TaskList from "../components/tasks/TaskList";
 import { useNavigate } from "react-router-dom";
-
-import CompletionBarChart from "../components/Charts/CompletionBarChart";
-import PriorityPieChart from "../components/Charts/PriorityPieChart";
-import ProductivityScore from "../components/Charts/ProductivityScore";
-import ProductivityTrendChart from "../components/Charts/ProductivityTrendChart";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import StatsCards from "../components/dashboard/StatsCard";
+import CompletionBarChart from "../components/charts/CompletionBarChart";
+import PriorityPieChart from "../components/charts/PriorityPieChart";
+import ProductivityScore from "../components/charts/ProductivityScore";
+import ProductivityTrendChart from "../components/charts/ProductivityTrendChart";
 
 function Dashboard() {
   const [tasks, setTasks] = useState([]);
@@ -117,22 +118,27 @@ function Dashboard() {
   const lowCount = tasks.filter(t => t.priority === "low").length;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+  <DashboardLayout>
+    <div className="max-w-7xl mx-auto p-6 space-y-8">
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold">Productivity Dashboard</h2>
 
         <button
           onClick={handleLogout}
-          className="bg-gray-800 text-white px-4 py-2 rounded"
+          className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700"
         >
           Logout
         </button>
       </div>
 
+      {/* Stats Cards */}
+      <StatsCards stats={stats} />
+
       {/* Add Task */}
-      <form onSubmit={handleAddTask} className="mb-6 flex gap-2">
+      <form onSubmit={handleAddTask} className="flex gap-3">
+
         <input
           type="text"
           placeholder="Enter task"
@@ -153,14 +159,15 @@ function Dashboard() {
 
         <button
           type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500"
         >
           Add
         </button>
+
       </form>
 
       {/* Search + Filters */}
-      <div className="mb-4 flex gap-2 items-center">
+      <div className="flex gap-2 items-center">
 
         <input
           type="text"
@@ -184,7 +191,7 @@ function Dashboard() {
 
         <button
           onClick={fetchAiSummary}
-          className="bg-purple-600 text-white px-4 py-2 rounded"
+          className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-500"
         >
           Analyze Productivity
         </button>
@@ -194,77 +201,67 @@ function Dashboard() {
       {loading && <p>Loading tasks...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
-      {/* Task List */}
-      {!loading && filteredTasks.length > 0 && (
-        <TaskList tasks={filteredTasks} refreshTasks={fetchTasks} />
-      )}
+      {/* Main Dashboard Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+        {/* Charts Section */}
+        <div className="space-y-6">
 
-        <CompletionBarChart
-          total={totalTasks}
-          completed={completedTasks}
-          pending={pendingTasks}
-        />
+          <div className="bg-white p-6 rounded-xl shadow">
+            <CompletionBarChart
+              total={totalTasks}
+              completed={completedTasks}
+              pending={pendingTasks}
+            />
+          </div>
 
-        <PriorityPieChart
-          high={highCount}
-          medium={mediumCount}
-          low={lowCount}
-        />
+          <div className="bg-white p-6 rounded-xl shadow">
+            <PriorityPieChart
+              high={highCount}
+              medium={mediumCount}
+              low={lowCount}
+            />
+          </div>
 
-        <ProductivityScore
-          score={stats?.completionRate || completionRate}
-        />
+          <div className="bg-white p-6 rounded-xl shadow">
+            <ProductivityScore
+              score={stats?.completionRate || completionRate}
+            />
+          </div>
+
+        </div>
+
+        {/* Tasks Section */}
+        <div className="bg-white p-6 rounded-xl shadow">
+
+          <h3 className="text-xl font-bold mb-4">
+            Tasks
+          </h3>
+
+          {!loading && filteredTasks.length > 0 && (
+            <TaskList
+              tasks={filteredTasks}
+              refreshTasks={fetchTasks}
+            />
+          )}
+
+        </div>
 
       </div>
 
       {/* Trend Chart */}
       {trend.length > 0 && (
-        <div className="mt-10">
+        <div className="bg-white p-6 rounded-xl shadow">
           <ProductivityTrendChart data={trend} />
         </div>
       )}
 
       {/* AI Loading */}
-      {aiLoading && <p className="mt-6">Analyzing productivity...</p>}
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-8">
-
-          <div className="bg-blue-50 p-4 rounded shadow">
-            <h4>Total Tasks</h4>
-            <p className="text-2xl font-bold">{stats.totalTasks}</p>
-          </div>
-
-          <div className="bg-green-50 p-4 rounded shadow">
-            <h4>Completed</h4>
-            <p className="text-2xl font-bold">{stats.completedTasks}</p>
-          </div>
-
-          <div className="bg-yellow-50 p-4 rounded shadow">
-            <h4>Completion Rate</h4>
-            <p className="text-2xl font-bold">{stats.completionRate}%</p>
-          </div>
-
-          <div className="bg-purple-50 p-4 rounded shadow">
-            <h4>High Priority Rate</h4>
-            <p className="text-2xl font-bold">{stats.highPriorityCompletionRate}%</p>
-          </div>
-
-          <div className="bg-orange-50 p-4 rounded shadow">
-            <h4>Streak</h4>
-            <p className="text-2xl font-bold">{stats.streak} days</p>
-          </div>
-
-        </div>
-      )}
+      {aiLoading && <p>Analyzing productivity...</p>}
 
       {/* AI Insights */}
       {aiInsights && (
-        <div className="mt-8 bg-white shadow-lg p-6 rounded-xl">
+        <div className="bg-white shadow-lg p-6 rounded-xl">
 
           <h3 className="text-xl font-bold mb-4">AI Insights</h3>
 
@@ -297,7 +294,7 @@ function Dashboard() {
 
       {/* AI Suggestions */}
       {suggestions.length > 0 && (
-        <div className="mt-6 bg-blue-50 p-6 rounded-xl shadow">
+        <div className="bg-blue-50 p-6 rounded-xl shadow">
 
           <h3 className="text-lg font-bold mb-3">
             AI Productivity Suggestions
@@ -313,7 +310,11 @@ function Dashboard() {
       )}
 
     </div>
-  );
+    <div className="bg-red-500 text-white p-4">
+  Tailwind Test
+</div>
+  </DashboardLayout>
+);
 }
 
 export default Dashboard;
