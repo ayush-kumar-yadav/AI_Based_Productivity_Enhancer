@@ -3,8 +3,9 @@ const Task = require("../models/Task");
 
 exports.getAIProductivitySummary = async (req, res) => {
   try {
+
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY
     });
 
     const tasks = await Task.find({ user: req.user.id });
@@ -67,7 +68,7 @@ exports.getAIProductivitySummary = async (req, res) => {
       if (!task.completed) return;
 
       const day = new Date(task.updatedAt).toLocaleDateString("en-US", {
-        weekday: "short",
+        weekday: "short"
       });
 
       trendData[day] = (trendData[day] || 0) + 1;
@@ -75,21 +76,41 @@ exports.getAIProductivitySummary = async (req, res) => {
 
     const trendArray = Object.keys(trendData).map(day => ({
       day,
-      completed: trendData[day],
+      completed: trendData[day]
     }));
 
-    // ===== AI ANALYSIS PROMPT =====
+
+    // ===== DEFAULT FALLBACK AI =====
+    let aiInsights = {
+      behaviorInsight: "You are steadily completing tasks.",
+      riskWarning: "Some high priority tasks remain pending.",
+      strategies: [
+        "Finish high priority tasks first",
+        "Maintain daily consistency",
+        "Break large tasks into smaller ones"
+      ],
+      motivation: "Small daily wins lead to big productivity gains."
+    };
+
+    let suggestions = [
+      "Complete pending high priority tasks first",
+      "Maintain a daily productivity streak",
+      "Focus on fewer tasks at a time"
+    ];
+
+
+    // ===== AI PROMPTS =====
     const prompt = `
-Return ONLY a valid JSON object.
+Return ONLY valid JSON:
 
 {
-  "behaviorInsight": "...",
-  "riskWarning": "...",
-  "strategies": ["...", "...", "..."],
-  "motivation": "..."
+ "behaviorInsight": "...",
+ "riskWarning": "...",
+ "strategies": ["...", "...", "..."],
+ "motivation": "..."
 }
 
-Analyze the productivity data:
+Analyze this productivity data:
 
 Total Tasks: ${totalTasks}
 Completed Tasks: ${completedTasks}
@@ -98,12 +119,11 @@ Completion Rate: ${completionRate}%
 High Priority Completion Rate: ${highPriorityCompletionRate}%
 `;
 
-    // ===== AI SUGGESTIONS PROMPT =====
     const suggestionPrompt = `
-Return ONLY valid JSON.
+Return ONLY valid JSON:
 
 {
-  "suggestions": ["...", "...", "..."]
+ "suggestions": ["...", "...", "..."]
 }
 
 Based on:
@@ -112,48 +132,44 @@ Completion Rate: ${completionRate}%
 Pending Tasks: ${pendingTasks}
 `;
 
-    const response = await ai.models.generateContent({
-      model: "models/gemini-2.5-flash",
-      contents: prompt,
-    });
-
-    const suggestionResponse = await ai.models.generateContent({
-      model: "models/gemini-2.5-flash",
-      contents: suggestionPrompt,
-    });
-
-    // ===== CLEAN AI TEXT FUNCTION =====
-    const cleanJson = text => {
-      text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-      const match = text.match(/\{[\s\S]*\}/);
-      return match ? match[0] : "{}";
-    };
-
-    // ===== PARSE AI INSIGHTS =====
-    let aiInsights;
     try {
-      const cleanText = cleanJson(response.text || "{}");
-      aiInsights = JSON.parse(cleanText);
-    } catch {
-      aiInsights = {
-        behaviorInsight: "AI analysis could not be structured.",
-        riskWarning: "",
-        strategies: [],
-        motivation: "",
+
+      const response = await ai.models.generateContent({
+        model: "models/gemini-2.5-flash",
+        contents: prompt
+      });
+
+      const suggestionResponse = await ai.models.generateContent({
+        model: "models/gemini-2.5-flash",
+        contents: suggestionPrompt
+      });
+
+      // Clean AI output
+      const cleanJson = text => {
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        const match = text.match(/\{[\s\S]*\}/);
+        return match ? match[0] : "{}";
       };
+
+      try {
+        const parsed = JSON.parse(cleanJson(response.text || "{}"));
+        aiInsights = parsed;
+      } catch {}
+
+      try {
+        const parsedSuggestions = JSON.parse(
+          cleanJson(suggestionResponse.text || "{}")
+        );
+        suggestions = parsedSuggestions.suggestions || suggestions;
+      } catch {}
+
+    } catch (aiError) {
+
+      console.log("Gemini unavailable, using fallback insights");
+
     }
 
-    // ===== PARSE AI SUGGESTIONS =====
-    let suggestions = [];
-    try {
-      const cleanText = cleanJson(suggestionResponse.text || "{}");
-      const parsed = JSON.parse(cleanText);
-      suggestions = parsed.suggestions || [];
-    } catch {
-      suggestions = [];
-    }
-
-    // ===== RESPONSE =====
+    // ===== FINAL RESPONSE =====
     res.json({
       stats: {
         totalTasks,
@@ -161,14 +177,20 @@ Pending Tasks: ${pendingTasks}
         pendingTasks,
         completionRate,
         highPriorityCompletionRate,
-        streak,
+        streak
       },
       trend: trendArray,
       suggestions,
-      aiInsights,
+      aiInsights
     });
+
   } catch (error) {
+
     console.error("FULL ERROR:", error);
-    res.status(500).json({ message: "AI analysis failed" });
+
+    res.status(500).json({
+      message: "Analytics failed"
+    });
+
   }
 };

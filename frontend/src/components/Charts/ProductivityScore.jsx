@@ -1,20 +1,22 @@
-import {
-    RadialBar,
-    RadialBarChart,
-    ResponsiveContainer,
-}from "recharts";
+import { RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
 
 function ProductivityScore({ score }) {
-    const data = [
-        {
-            name: "Score",
-            value: score,
-        }
-    ];
-    
+
+  const safeScore = Number(score) || 0;
+
+  const data = [
+    {
+      name: "Score",
+      value: safeScore
+    }
+  ];
+
   return (
-    <div className="bg-white p-4 rounded-xl shadow-md text-center">
-      <h2 className="font-semibold mb-3">AI Productivity Score</h2>
+    <div>
+
+      <h3 className="font-semibold mb-3 text-gray-700">
+        AI Productivity Score
+      </h3>
 
       <ResponsiveContainer width="100%" height={250}>
         <RadialBarChart
@@ -24,13 +26,22 @@ function ProductivityScore({ score }) {
           startAngle={180}
           endAngle={0}
         >
-          <RadialBar dataKey="value" />
+
+          <RadialBar
+            dataKey="value"
+            cornerRadius={10}
+            fill="#6366F1"
+          />
+
         </RadialBarChart>
       </ResponsiveContainer>
 
-      <p className="mt-2 text-xl font-bold">{score}%</p>
+      <div className="text-center text-2xl font-bold mt-2">
+        {safeScore}%
+      </div>
+
     </div>
   );
 }
 
-export default ProductivityScore;   
+export default ProductivityScore;
