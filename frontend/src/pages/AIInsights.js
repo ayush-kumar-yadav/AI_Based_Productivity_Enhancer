@@ -1,83 +1,89 @@
-import { useEffect, useState } from "react";
-import API from "../api/axios";
+import { useState } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
+import API from "../api/axios";
 
 function AIInsights() {
 
-  const [insights, setInsights] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
+  const [rankedTasks, setRankedTasks] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const fetchInsights = async () => {
+  const rankTasks = async () => {
 
-    const res = await API.get("/analytics/ai-summary");
+    try {
 
-    setInsights(res.data.aiInsights);
-    setSuggestions(res.data.suggestions);
+      setLoading(true);
+
+      const res = await API.get("/analytics/rank-tasks");
+
+      setRankedTasks(res.data.rankedTasks);
+
+    } catch (error) {
+
+      console.log(error);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
   };
-
-  useEffect(()=>{
-    fetchInsights();
-  },[]);
 
   return (
     <DashboardLayout>
 
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="max-w-4xl mx-auto space-y-8">
 
-        <h1 className="text-3xl font-bold">
-          AI Insights
-        </h1>
+        <h2 className="text-3xl font-bold">
+          AI Task Ranker
+        </h2>
 
-        {insights && (
+        <button
+          onClick={rankTasks}
+          className="bg-purple-600 text-white px-6 py-3 rounded hover:bg-purple-500"
+        >
+          Rank My Tasks
+        </button>
 
-          <div className="bg-white p-6 rounded-xl shadow space-y-4">
-
-            <h3 className="font-bold text-lg">
-              Behavior Insight
-            </h3>
-
-            <p>{insights.behaviorInsight}</p>
-
-            <h3 className="font-bold text-lg text-red-600">
-              Risk Warning
-            </h3>
-
-            <p>{insights.riskWarning}</p>
-
-            <h3 className="font-bold text-lg">
-              Strategies
-            </h3>
-
-            <ul className="list-disc ml-6">
-              {(insights.strategies || []).map((s,i)=>(
-                <li key={i}>{s}</li>
-              ))}
-            </ul>
-
-            <h3 className="font-bold text-lg text-purple-700">
-              Motivation
-            </h3>
-
-            <p>{insights.motivation}</p>
-
-          </div>
+        {loading && (
+          <p className="text-gray-500">
+            AI is analyzing your tasks...
+          </p>
         )}
 
-        {suggestions.length > 0 && (
+        {rankedTasks.length > 0 && (
 
-          <div className="bg-blue-50 p-6 rounded-xl shadow">
+          <div className="bg-white p-6 rounded-xl shadow">
 
-            <h2 className="font-bold text-lg mb-2">
-              AI Suggestions
-            </h2>
+            <h3 className="text-xl font-semibold mb-4">
+              Recommended Order
+            </h3>
 
-            <ul className="list-disc ml-6">
-              {suggestions.map((s,i)=>(
-                <li key={i}>{s}</li>
+            <ol className="space-y-3">
+
+              {rankedTasks.map((task, index) => (
+
+                <li
+                  key={index}
+                  className="flex items-center justify-between border p-3 rounded"
+                >
+
+                  <span>
+                    {index + 1}. {task}
+                  </span>
+
+                  <span className="text-purple-600 font-semibold">
+                    AI Priority
+                  </span>
+
+                </li>
+
               ))}
-            </ul>
+
+            </ol>
 
           </div>
+
         )}
 
       </div>

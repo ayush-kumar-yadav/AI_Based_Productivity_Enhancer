@@ -1,6 +1,9 @@
 const { GoogleGenAI } = require("@google/genai");
 const Task = require("../models/Task");
 
+
+// ================= AI PRODUCTIVITY SUMMARY =================
+
 exports.getAIProductivitySummary = async (req, res) => {
   try {
 
@@ -28,9 +31,7 @@ exports.getAIProductivitySummary = async (req, res) => {
     const highPriorityCompletionRate =
       highPriorityTasks.length > 0
         ? Number(
-            ((highPriorityCompleted / highPriorityTasks.length) * 100).toFixed(
-              1
-            )
+            ((highPriorityCompleted / highPriorityTasks.length) * 100).toFixed(1)
           )
         : 0;
 
@@ -47,24 +48,29 @@ exports.getAIProductivitySummary = async (req, res) => {
     let prevDate = null;
 
     uniqueDates.forEach(date => {
+
       const current = new Date(date);
 
       if (!prevDate) {
         streak = 1;
       } else {
+
         const diff = (current - prevDate) / (1000 * 60 * 60 * 24);
 
         if (diff === 1) streak++;
         else streak = 1;
+
       }
 
       prevDate = current;
+
     });
 
     // ===== WEEKLY TREND =====
     const trendData = {};
 
     tasks.forEach(task => {
+
       if (!task.completed) return;
 
       const day = new Date(task.updatedAt).toLocaleDateString("en-US", {
@@ -72,6 +78,7 @@ exports.getAIProductivitySummary = async (req, res) => {
       });
 
       trendData[day] = (trendData[day] || 0) + 1;
+
     });
 
     const trendArray = Object.keys(trendData).map(day => ({
@@ -144,7 +151,6 @@ Pending Tasks: ${pendingTasks}
         contents: suggestionPrompt
       });
 
-      // Clean AI output
       const cleanJson = text => {
         text = text.replace(/```json/g, "").replace(/```/g, "").trim();
         const match = text.match(/\{[\s\S]*\}/);
@@ -169,7 +175,6 @@ Pending Tasks: ${pendingTasks}
 
     }
 
-    // ===== FINAL RESPONSE =====
     res.json({
       stats: {
         totalTasks,
@@ -190,6 +195,87 @@ Pending Tasks: ${pendingTasks}
 
     res.status(500).json({
       message: "Analytics failed"
+    });
+
+  }
+};
+
+
+// ================= AI TASK RANKER =================
+
+exports.rankTasks = async (req, res) => {
+  try {
+
+    const ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY
+    });
+
+    const tasks = await Task.find({ user: req.user.id });
+
+    if (tasks.length === 0) {
+      return res.json({ rankedTasks: [] });
+    }
+
+    const taskList = tasks.map((t, i) =>
+      `${i + 1}. ${t.title} (priority: ${t.priority}, completed: ${t.completed})`
+    ).join("\n");
+
+    const prompt = `
+You are a productivity assistant.
+
+Rank these tasks from MOST important to LEAST important.
+
+Return ONLY JSON:
+
+{
+ "rankedTasks": ["task1", "task2", "task3"]
+}
+
+Tasks:
+
+${taskList}
+`;
+
+    let rankedTasks = [];
+
+    try {
+
+      const response = await ai.models.generateContent({
+        model: "models/gemini-2.5-flash",
+        contents: prompt
+      });
+
+      const text = response.text;
+
+      const clean = text
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
+
+      const parsed = JSON.parse(clean);
+
+      rankedTasks = parsed.rankedTasks;
+
+    } catch {
+
+      // fallback ranking
+      rankedTasks = tasks
+        .sort((a, b) => {
+          const order = { high: 3, medium: 2, low: 1 };
+          return order[b.priority] - order[a.priority];
+        })
+        .map(t => t.title);
+
+    }
+
+    res.json({ rankedTasks });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      message: "Task ranking failed"
     });
 
   }
