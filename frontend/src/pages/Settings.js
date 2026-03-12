@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import API from "../api/axios";
 
@@ -8,39 +8,106 @@ function Settings() {
   const [password, setPassword] = useState("");
   const [theme, setTheme] = useState("light");
 
+
+  // Load saved theme
+  useEffect(() => {
+
+    const savedTheme = localStorage.getItem("theme") || "light";
+
+    setTheme(savedTheme);
+
+    if (savedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    }
+
+  }, []);
+
+
+  // Update profile
   const handleProfileUpdate = async () => {
+
     try {
 
-      await API.put("/users/profile", {
-        name
-      });
+      await API.put("/users/profile", { name });
 
       alert("Profile updated");
 
     } catch (error) {
 
       console.log(error);
+      alert("Failed to update profile");
 
     }
+
   };
 
+
+  // Update password
   const handlePasswordUpdate = async () => {
 
     try {
 
-      await API.put("/users/password", {
-        password
-      });
+      await API.put("/users/password", { password });
 
       alert("Password updated");
+
+      setPassword("");
+
+    } catch (error) {
+
+      console.log(error);
+      alert("Failed to update password");
+
+    }
+
+  };
+
+
+  // Theme change
+  const handleThemeChange = (value) => {
+
+    setTheme(value);
+
+    localStorage.setItem("theme", value);
+
+    if (value === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+
+  };
+
+
+  // Delete account
+  const handleDeleteAccount = async () => {
+
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete your account? This cannot be undone."
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+
+      await API.delete("/auth/delete");
+
+      localStorage.removeItem("token");
+
+      alert("Account deleted successfully");
+
+      window.location.href = "/";
 
     } catch (error) {
 
       console.log(error);
 
+      alert("Failed to delete account");
+
     }
 
   };
+
 
   return (
     <DashboardLayout>
@@ -51,9 +118,9 @@ function Settings() {
           Settings
         </h2>
 
-        {/* Profile Settings */}
 
-        <div className="bg-white p-6 rounded-xl shadow">
+        {/* Profile */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
 
           <h3 className="text-xl font-semibold mb-4">
             Profile
@@ -77,9 +144,8 @@ function Settings() {
         </div>
 
 
-        {/* Password Settings */}
-
-        <div className="bg-white p-6 rounded-xl shadow">
+        {/* Password */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
 
           <h3 className="text-xl font-semibold mb-4">
             Change Password
@@ -103,9 +169,8 @@ function Settings() {
         </div>
 
 
-        {/* Theme Settings */}
-
-        <div className="bg-white p-6 rounded-xl shadow">
+        {/* Theme */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
 
           <h3 className="text-xl font-semibold mb-4">
             Theme
@@ -113,25 +178,17 @@ function Settings() {
 
           <select
             value={theme}
-            onChange={(e) => setTheme(e.target.value)}
+            onChange={(e) => handleThemeChange(e.target.value)}
             className="border p-2 rounded"
           >
-
-            <option value="light">
-              Light
-            </option>
-
-            <option value="dark">
-              Dark
-            </option>
-
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
           </select>
 
         </div>
 
 
         {/* Danger Zone */}
-
         <div className="bg-red-50 p-6 rounded-xl shadow">
 
           <h3 className="text-xl font-semibold text-red-600 mb-4">
@@ -139,6 +196,7 @@ function Settings() {
           </h3>
 
           <button
+            onClick={handleDeleteAccount}
             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-500"
           >
             Delete Account

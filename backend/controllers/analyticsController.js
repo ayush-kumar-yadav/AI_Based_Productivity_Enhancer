@@ -1,11 +1,23 @@
 const { GoogleGenAI } = require("@google/genai");
 const Task = require("../models/Task");
 
+// ===== AI CACHE (prevents rate limits) =====
+let cachedAI = null;
+let lastFetch = 0;
+
 
 // ================= AI PRODUCTIVITY SUMMARY =================
 
 exports.getAIProductivitySummary = async (req, res) => {
+
   try {
+
+    const now = Date.now();
+
+    // return cached result if within 60 seconds
+    if (cachedAI && now - lastFetch < 60000) {
+      return res.json(cachedAI);
+    }
 
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY
@@ -13,18 +25,28 @@ exports.getAIProductivitySummary = async (req, res) => {
 
     const tasks = await Task.find({ user: req.user.id });
 
+
     // ===== BASIC STATS =====
+
     const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.completed).length;
-    const pendingTasks = totalTasks - completedTasks;
+
+    const completedTasks =
+      tasks.filter(t => t.completed).length;
+
+    const pendingTasks =
+      totalTasks - completedTasks;
 
     const completionRate =
       totalTasks > 0
         ? Number(((completedTasks / totalTasks) * 100).toFixed(1))
         : 0;
 
+
     // ===== HIGH PRIORITY ANALYSIS =====
-    const highPriorityTasks = tasks.filter(t => t.priority === "high");
+
+    const highPriorityTasks =
+      tasks.filter(t => t.priority === "high");
+
     const highPriorityCompleted =
       highPriorityTasks.filter(t => t.completed).length;
 
@@ -35,14 +57,15 @@ exports.getAIProductivitySummary = async (req, res) => {
           )
         : 0;
 
+
     // ===== PRODUCTIVITY STREAK =====
+
     const completedDates = tasks
       .filter(t => t.completed)
       .map(t => new Date(t.updatedAt).toDateString());
 
-    const uniqueDates = [...new Set(completedDates)].sort(
-      (a, b) => new Date(a) - new Date(b)
-    );
+    const uniqueDates = [...new Set(completedDates)]
+      .sort((a, b) => new Date(a) - new Date(b));
 
     let streak = 0;
     let prevDate = null;
@@ -55,7 +78,8 @@ exports.getAIProductivitySummary = async (req, res) => {
         streak = 1;
       } else {
 
-        const diff = (current - prevDate) / (1000 * 60 * 60 * 24);
+        const diff =
+          (current - prevDate) / (1000 * 60 * 60 * 24);
 
         if (diff === 1) streak++;
         else streak = 1;
@@ -66,37 +90,44 @@ exports.getAIProductivitySummary = async (req, res) => {
 
     });
 
+
     // ===== WEEKLY TREND =====
+
     const trendData = {};
 
     tasks.forEach(task => {
 
       if (!task.completed) return;
 
-      const day = new Date(task.updatedAt).toLocaleDateString("en-US", {
-        weekday: "short"
-      });
+      const day = new Date(task.updatedAt)
+        .toLocaleDateString("en-US", { weekday: "short" });
 
-      trendData[day] = (trendData[day] || 0) + 1;
+      trendData[day] =
+        (trendData[day] || 0) + 1;
 
     });
 
-    const trendArray = Object.keys(trendData).map(day => ({
-      day,
-      completed: trendData[day]
-    }));
+    const trendArray = Object.keys(trendData)
+      .map(day => ({
+        day,
+        completed: trendData[day]
+      }));
 
 
     // ===== DEFAULT FALLBACK AI =====
+
     let aiInsights = {
-      behaviorInsight: "You are steadily completing tasks.",
-      riskWarning: "Some high priority tasks remain pending.",
+      behaviorInsight:
+        "You are steadily completing tasks.",
+      riskWarning:
+        "Some high priority tasks remain pending.",
       strategies: [
         "Finish high priority tasks first",
         "Maintain daily consistency",
         "Break large tasks into smaller ones"
       ],
-      motivation: "Small daily wins lead to big productivity gains."
+      motivation:
+        "Small daily wins lead to big productivity gains."
     };
 
     let suggestions = [
@@ -106,7 +137,8 @@ exports.getAIProductivitySummary = async (req, res) => {
     ];
 
 
-    // ===== AI PROMPTS =====
+    // ===== GEMINI PROMPTS =====
+
     const prompt = `
 Return ONLY valid JSON:
 
@@ -139,43 +171,74 @@ Completion Rate: ${completionRate}%
 Pending Tasks: ${pendingTasks}
 `;
 
+
     try {
 
-      const response = await ai.models.generateContent({
-        model: "models/gemini-2.5-flash",
-        contents: prompt
-      });
+      const response =
+        await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt
+        });
 
-      const suggestionResponse = await ai.models.generateContent({
-        model: "models/gemini-2.5-flash",
-        contents: suggestionPrompt
-      });
+      const suggestionResponse =
+        await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: suggestionPrompt
+        });
+
 
       const cleanJson = text => {
-        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        const match = text.match(/\{[\s\S]*\}/);
+
+        text = text
+          .replace(/```json/g, "")
+          .replace(/```/g, "")
+          .trim();
+
+        const match =
+          text.match(/\{[\s\S]*\}/);
+
         return match ? match[0] : "{}";
+
       };
 
-      try {
-        const parsed = JSON.parse(cleanJson(response.text || "{}"));
-        aiInsights = parsed;
-      } catch {}
 
       try {
-        const parsedSuggestions = JSON.parse(
-          cleanJson(suggestionResponse.text || "{}")
-        );
-        suggestions = parsedSuggestions.suggestions || suggestions;
+
+        const responseText =
+          response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        const parsed =
+          JSON.parse(cleanJson(responseText));
+
+        aiInsights = parsed;
+
+      } catch {}
+
+
+      try {
+
+        const suggestionText =
+          suggestionResponse?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        const parsedSuggestions =
+          JSON.parse(cleanJson(suggestionText));
+
+        suggestions =
+          parsedSuggestions.suggestions || suggestions;
+
       } catch {}
 
     } catch (aiError) {
 
-      console.log("Gemini unavailable, using fallback insights");
+      console.log(
+        "Gemini unavailable, using fallback insights"
+      );
 
     }
 
-    res.json({
+
+    const responseData = {
+
       stats: {
         totalTasks,
         completedTasks,
@@ -184,41 +247,58 @@ Pending Tasks: ${pendingTasks}
         highPriorityCompletionRate,
         streak
       },
+
       trend: trendArray,
       suggestions,
       aiInsights
-    });
+
+    };
+
+
+    // cache result
+    cachedAI = responseData;
+    lastFetch = now;
+
+    res.json(responseData);
 
   } catch (error) {
 
-    console.error("FULL ERROR:", error);
+    console.error("Analytics error:", error);
 
     res.status(500).json({
       message: "Analytics failed"
     });
 
   }
+
 };
+
 
 
 // ================= AI TASK RANKER =================
 
 exports.rankTasks = async (req, res) => {
+
   try {
 
     const ai = new GoogleGenAI({
       apiKey: process.env.GEMINI_API_KEY
     });
 
-    const tasks = await Task.find({ user: req.user.id });
+    const tasks =
+      await Task.find({ user: req.user.id });
 
     if (tasks.length === 0) {
       return res.json({ rankedTasks: [] });
     }
 
-    const taskList = tasks.map((t, i) =>
-      `${i + 1}. ${t.title} (priority: ${t.priority}, completed: ${t.completed})`
-    ).join("\n");
+
+    const taskList = tasks
+      .map((t, i) =>
+        `${i + 1}. ${t.title} (priority: ${t.priority}, completed: ${t.completed})`
+      )
+      .join("\n");
+
 
     const prompt = `
 You are a productivity assistant.
@@ -236,33 +316,44 @@ Tasks:
 ${taskList}
 `;
 
+
     let rankedTasks = [];
 
     try {
 
-      const response = await ai.models.generateContent({
-        model: "models/gemini-2.5-flash",
-        contents: prompt
-      });
+      const response =
+        await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt
+        });
 
-      const text = response.text;
+      const text =
+        response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-      const clean = text
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
+      const clean =
+        text.replace(/```json/g, "")
+            .replace(/```/g, "")
+            .trim();
 
-      const parsed = JSON.parse(clean);
+      const parsed =
+        JSON.parse(clean);
 
-      rankedTasks = parsed.rankedTasks;
+      rankedTasks =
+        parsed.rankedTasks;
 
     } catch {
 
       // fallback ranking
+
       rankedTasks = tasks
         .sort((a, b) => {
-          const order = { high: 3, medium: 2, low: 1 };
-          return order[b.priority] - order[a.priority];
+
+          const order =
+            { high: 3, medium: 2, low: 1 };
+
+          return order[b.priority] -
+                 order[a.priority];
+
         })
         .map(t => t.title);
 
@@ -279,4 +370,5 @@ ${taskList}
     });
 
   }
+
 };
