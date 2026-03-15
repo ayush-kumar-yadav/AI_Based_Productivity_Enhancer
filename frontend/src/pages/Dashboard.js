@@ -5,7 +5,6 @@ import StatsCards from "../components/dashboard/StatsCard";
 import TaskList from "../components/tasks/TaskList";
 
 function Dashboard() {
-
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [aiInsights, setAiInsights] = useState(null);
@@ -21,78 +20,135 @@ function Dashboard() {
   };
 
   const fetchAiSummary = async () => {
-
     if (loadingAI) return;
-
     try {
-
       setLoadingAI(true);
-
       const res = await API.get("/analytics/ai-summary");
-
       if (res.data) {
         setStats(res.data.stats);
         setAiInsights(res.data.aiInsights);
       }
-
     } catch (err) {
-
       console.error("AI Summary error:", err);
-
     }
-
     setLoadingAI(false);
-
   };
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
+  useEffect(() => { fetchTasks(); }, []);
 
   const recentTasks = tasks.slice(0, 5);
 
   return (
-    <DashboardLayout>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
+        .dash-wrap {
+          max-width: 1060px; margin: 0 auto;
+          display: flex; flex-direction: column; gap: 20px;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+        }
 
-        <h1 className="text-3xl font-bold">
-          Dashboard
-        </h1>
+        /* header row */
+        .dash-header {
+          display: flex; align-items: flex-start;
+          justify-content: space-between; gap: 12px;
+          flex-wrap: wrap;
+        }
+        .dash-greeting {
+          font-family: 'Nunito', sans-serif;
+          font-size: 24px; font-weight: 900; color: #1e2235; margin-bottom: 3px;
+        }
+        .dash-greeting-sub { font-size: 14px; color: #6b7594; }
 
-        {/* AI Analysis Button */}
-        <button
-          onClick={fetchAiSummary}
-          className="bg-purple-600 text-white px-4 py-2 rounded"
-        >
-          {loadingAI ? "Analyzing..." : "Generate AI Summary"}
-        </button>
+        /* AI button */
+        .ai-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 10px 20px;
+          background: #3b72f6; border: none; border-radius: 20px;
+          color: #fff; font-family: 'Nunito', sans-serif;
+          font-size: 14px; font-weight: 800; cursor: pointer;
+          transition: background 0.18s, transform 0.14s, box-shadow 0.18s;
+          box-shadow: 0 4px 16px rgba(59,114,246,0.28);
+          white-space: nowrap;
+        }
+        .ai-btn:hover { background: #2b5ee8; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(59,114,246,0.36); }
+        .ai-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 
-        {stats && <StatsCards stats={stats} />}
+        /* card base */
+        .dash-card {
+          background: rgba(255,255,255,0.88);
+          border: 1px solid rgba(255,255,255,0.95);
+          border-radius: 16px;
+          padding: 22px 24px;
+          box-shadow: 0 4px 18px rgba(59,114,246,0.07);
+        }
+        .dash-card-title {
+          font-family: 'Nunito', sans-serif;
+          font-size: 16px; font-weight: 800; color: #1e2235; margin-bottom: 16px;
+        }
 
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="text-xl font-bold mb-4">
-            Recent Tasks
-          </h2>
+        /* AI insights card */
+        .ai-card {
+          background: rgba(59,114,246,0.06);
+          border: 1.5px solid rgba(59,114,246,0.18);
+          border-radius: 16px; padding: 20px 24px;
+          box-shadow: 0 4px 18px rgba(59,114,246,0.06);
+          animation: fadeUp 0.4s ease both;
+        }
+        .ai-card-label {
+          display: flex; align-items: center; gap: 8px;
+          font-family: 'Nunito', sans-serif;
+          font-size: 14px; font-weight: 800; color: #3b72f6; margin-bottom: 10px;
+        }
+        .ai-card-text { font-size: 14px; color: #4b5470; line-height: 1.65; }
 
-          <TaskList tasks={recentTasks} refreshTasks={fetchTasks} />
-        </div>
+        @keyframes fadeUp {
+          from { opacity:0; transform:translateY(12px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+      `}</style>
 
-        {aiInsights && (
-          <div className="bg-purple-50 p-6 rounded-xl shadow">
+      <DashboardLayout>
+        <div className="dash-wrap">
 
-            <h2 className="text-xl font-bold mb-3">
-              AI Summary
-            </h2>
-
-            <p>{aiInsights.behaviorInsight}</p>
-
+          {/* Header */}
+          <div className="dash-header">
+            <div>
+              <div className="dash-greeting">Good day! 👋</div>
+              <div className="dash-greeting-sub">Here's what's happening with your tasks.</div>
+            </div>
+            <button
+              onClick={fetchAiSummary}
+              className="ai-btn"
+              disabled={loadingAI}
+            >
+              ✨ {loadingAI ? "Analyzing..." : "Generate AI Summary"}
+            </button>
           </div>
-        )}
 
-      </div>
+          {/* Stats (rendered by your existing StatsCards component) */}
+          {stats && <StatsCards stats={stats} />}
 
-    </DashboardLayout>
+          {/* Recent Tasks */}
+          <div className="dash-card">
+            <div className="dash-card-title">Recent Tasks</div>
+            <TaskList tasks={recentTasks} refreshTasks={fetchTasks} />
+          </div>
+
+          {/* AI Insights */}
+          {aiInsights && (
+            <div className="ai-card">
+              <div className="ai-card-label">
+                <span>🤖</span> AI Summary
+              </div>
+              <p className="ai-card-text">{aiInsights.behaviorInsight}</p>
+            </div>
+          )}
+
+        </div>
+      </DashboardLayout>
+    </>
   );
 }
 
