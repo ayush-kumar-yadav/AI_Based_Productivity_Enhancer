@@ -11,13 +11,18 @@ const app = express();
 
 connectDB();
 
-// ✅ CORS FIRST
+// CORS
 app.use(cors());
 
-// ✅ Body parser
+// Body parser
 app.use(express.json());
 
-// ✅ Routes AFTER middleware
+// Root test route
+app.get("/", (req, res) => {
+  res.send("FlowAI Backend API Running 🚀");
+});
+
+// API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/analytics", analyticsRoutes);
