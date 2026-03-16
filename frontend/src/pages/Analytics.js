@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import CompletionBarChart from "../components/charts/CompletionBarChart.jsx";
-import PriorityPieChart from "../components/charts/PriorityPieChart";
-import ProductivityTrendChart from "../components/charts/ProductivityTrendChart";
-import ProductivityScore from "../components/charts/ProductivityScore";
+import PriorityPieChart from "../components/charts/PriorityPieChart.jsx";
+import ProductivityTrendChart from "../components/charts/ProductivityTrendChart.jsx";
+import ProductivityScore from "../components/charts/ProductivityScore.jsx";
 
 function Analytics() {
   const [tasks, setTasks] = useState([]);
