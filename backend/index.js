@@ -12,7 +12,10 @@ const app = express();
 connectDB();
 
 // CORS
-app.use(cors());
+app.use(cors({
+  origin: "https://ai-based-productivity-enhancer.vercel.app",
+  credentials: true
+}));
 
 // Body parser
 app.use(express.json());
@@ -23,9 +26,9 @@ app.get("/", (req, res) => {
 });
 
 // API routes
-app.use("/api/auth", authRoutes);
-app.use("/api/tasks", taskRoutes);
-app.use("/api/analytics", analyticsRoutes);
+app.use("/auth", authRoutes);
+app.use("/tasks", taskRoutes);
+app.use("/analytics", analyticsRoutes);
 
 const PORT = process.env.PORT || 5000;
 
