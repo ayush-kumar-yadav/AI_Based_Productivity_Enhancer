@@ -21,8 +21,8 @@ connectDB();
 // CORS
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://ai-based-productivity-enhancer.vercel.app",
-];
+  process.env.FRONTEND_URL,
+].filter(Boolean);
 
 app.use(
   cors({
